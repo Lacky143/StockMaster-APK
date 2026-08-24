@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StockMaster</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eef3ef;font-family:Arial,sans-serif;color:#17231a}.app{max-width:430px;margin:auto;min-height:100vh;background:#fff;padding-bottom:75px}
+header{background:#08723a;color:#fff;padding:18px 16px;border-radius:0 0 22px 22px}h1{margin:0;font-size:22px}.sub{font-size:12px;opacity:.85;margin-top:4px}
+main{padding:14px}.page{display:none}.page.active{display:block}.cards{display:grid;grid-template-columns:1fr 1fr;gap:9px}.card{padding:13px;border-radius:14px;background:#f1f6f2}.num{font-size:23px;font-weight:700}.muted{font-size:11px;color:#69756d}.section{font-weight:700;margin:18px 0 9px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}button{border:0;border-radius:11px;padding:12px;background:#087a38;color:#fff;font-weight:700}.secondary{background:#eaf2ec;color:#18542f}
+.item{border:1px solid #e0e7e1;border-radius:12px;padding:12px;margin:7px 0;display:flex;justify-content:space-between;align-items:center}.item small{display:block;color:#68736b;margin-top:4px}.ok{color:#087a38}.low{color:#d97706}.out{color:#dc2626}
+.bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(430px,100%);background:#fff;border-top:1px solid #ddd;display:grid;grid-template-columns:repeat(4,1fr);padding:6px}.bottom button{background:transparent;color:#68736b;font-size:10px;padding:7px 2px}.bottom button.active{color:#087a38}
+.sheet{display:none;position:fixed;inset:0;background:#0007;align-items:flex-end}.box{width:min(430px,100%);background:#fff;border-radius:22px 22px 0 0;padding:18px;max-height:90vh;overflow:auto}h2{margin:2px 0 14px}.close{float:right;background:#eee;color:#333;padding:8px}.box input,.box select{width:100%;padding:12px;border:1px solid #d5ddd6;border-radius:10px;margin:5px 0 10px}.toast{display:none;position:fixed;top:18px;left:50%;transform:translateX(-50%);background:#183d27;color:#fff;padding:10px 15px;border-radius:10px;z-index:9}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:8px 4px;border-bottom:1px solid #e5e9e6;text-align:left}
+</style>
+</head>
+<body>
+<div class="app">
+<header><h1>StockMaster</h1><div class="sub">Restaurant Stock Management</div></header>
+<main>
+<section id="home" class="page active">
+<div class="cards"><div class="card"><div id="cnt" class="num">0</div><div class="muted">Items</div></div><div class="card"><div id="okc" class="num ok">0</div><div class="muted">In Stock</div></div><div class="card"><div id="lowc" class="num low">0</div><div class="muted">Low</div></div><div class="card"><div id="outc" class="num out">0</div><div class="muted">Out</div></div></div>
+<div class="section">Quick Actions</div><div class="grid"><button onclick="openStock()">📦 Stock Update</button><button onclick="openForm('purchase')">🛒 Purchase</button><button class="secondary" onclick="openForm('usage')">👨‍🍳 Usage</button><button class="secondary" onclick="openForm('waste')">🗑️ Wastage</button></div>
+<div class="section">Needs Attention</div><div id="alerts"></div>
+</section>
+<section id="stock" class="page"><div class="section">Stock Items</div><div id="stockList"></div><button onclick="openForm('add')" style="width:100%">+ Add New Item</button></section>
+<section id="reports" class="page"><div class="section">Reports</div><div id="report"></div></section>
+</main>
+<nav class="bottom"><button class="active" onclick="go('home',this)">🏠<br>Home</button><button onclick="go('stock',this)">📦<br>Stock</button><button onclick="go('reports',this)">📊<br>Reports</button><button onclick="openForm('add')">➕<br>Item</button></nav>
+</div>
+<div id="sheet" class="sheet"><div class="box"><button class="close" onclick="closeForm()">✕</button><div id="form"></div></div></div><div id="toast" class="toast"></div>
+<script>
+const initial=[
+["Rice",57,"kg",20,52],["Toor Dal",18,"kg",20,145],["Sunflower Oil",3,"L",5,125],["Milk",12,"L",10,53],
+["Sugar",8,"kg",10,43],["Tea Powder",2.5,"kg",3,390],["Sooji",0,"kg",5,55],["Curd",0,"L",5,70],
+["Tomato",6,"kg",10,35],["Onion",22,"kg",10,32]
+];
+let db=JSON.parse(localStorage.getItem("stockmaster_final")||"null")||{items:initial.map(x=>({name:x[0],qty:x[1],unit:x[2],min:x[3],rate:x[4]})),logs:[]};
+const save=()=>{localStorage.setItem("stockmaster_final",JSON.stringify(db));render();toast("Saved")};
+const status=x=>x.qty<=0?"out":x.qty<=x.min?"low":"ok";
+function render(){
+cnt.textContent=db.items.length;okc.textContent=db.items.filter(x=>status(x)=="ok").length;lowc.textContent=db.items.filter(x=>status(x)=="low").length;outc.textContent=db.items.filter(x=>status(x)=="out").length;
+alerts.innerHTML=db.items.filter(x=>status(x)!="ok").map(x=>`<div class="item"><div><b>${x.name}</b><small>${x.qty} ${x.unit} • minimum ${x.min}</small></div><b class="${status(x)}">${status(x).toUpperCase()}</b></div>`).join("")||"<p class='muted'>All stock levels are good 👍</p>";
+stockList.innerHTML=db.items.map((x,i)=>`<div class="item"><div><b>${x.name}</b><small>${x.qty} ${x.unit} • Min ${x.min} • ₹${x.rate}/${x.unit}</small></div><button onclick="openEdit(${i})">✏️ Edit</button></div>`).join("");
+let value=db.items.reduce((s,x)=>s+x.qty*x.rate,0);report.innerHTML=`<div class="cards"><div class="card"><div class="num">₹${value.toFixed(0)}</div><div class="muted">Stock Value</div></div><div class="card"><div class="num">${db.items.filter(x=>status(x)!="ok").length}</div><div class="muted">Attention</div></div></div><div class="section">Stock Summary</div><table><tr><th>Item</th><th>Qty</th><th>Value</th></tr>${db.items.map(x=>`<tr><td>${x.name}</td><td>${x.qty} ${x.unit}</td><td>₹${(x.qty*x.rate).toFixed(0)}</td></tr>`).join("")}</table>`;
+}
+function go(id,b){document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".bottom button").forEach(x=>x.classList.remove("active"));b.classList.add("active");render()}
+function openStock(){document.getElementById("stock").classList.add("active");document.getElementById("home").classList.remove("active");document.getElementById("reports").classList.remove("active")}
+function openEdit(i){let x=db.items[i];form.innerHTML=`<h2>Edit Stock</h2><label>Item Name</label><input id="name" value="${x.name}"><label>Current Quantity</label><input id="qty" type="number" step="0.1" value="${x.qty}"><label>Unit</label><input id="unit" value="${x.unit}"><label>Minimum Stock</label><input id="min" type="number" step="0.1" value="${x.min}"><label>Rate / Unit</label><input id="rate" type="number" step="0.01" value="${x.rate}"><div class="grid"><button onclick="saveEdit(${i})">SAVE</button><button style="background:#dc2626" onclick="deleteItem(${i})">DELETE</button></div>`;sheet.style.display="flex"}
+function saveEdit(i){let x=db.items[i];x.name=name.value.trim()||x.name;x.qty=+qty.value||0;x.unit=unit.value.trim()||"pcs";x.min=+min.value||0;x.rate=+rate.value||0;db.logs.unshift({type:"Edit",item:x.name,date:new Date().toLocaleString()});save();closeForm()}
+function deleteItem(i){if(confirm("Delete this item?")){db.items.splice(i,1);save();closeForm()}}
+function openForm(type){let opts=db.items.map((x,i)=>`<option value="${i}">${x.name} (${x.qty} ${x.unit})</option>`).join("");sheet.style.display="flex";
+if(type=="add")form.innerHTML=`<h2>Add Item</h2><label>Name</label><input id="name"><label>Unit</label><input id="unit" placeholder="kg / L / pcs"><label>Opening Qty</label><input id="qty" type="number" step="0.1"><label>Minimum</label><input id="min" type="number" step="0.1"><label>Rate</label><input id="rate" type="number" step="0.01"><button style="width:100%" onclick="addItem()">SAVE ITEM</button>`;
+else form.innerHTML=`<h2>${type=="purchase"?"Purchase Entry":type=="usage"?"Kitchen Usage":"Wastage"}</h2><label>Item</label><select id="sel">${opts}</select><label>Quantity</label><input id="amount" type="number" step="0.1" min="0.1"><button style="width:100%" onclick="apply('${type}')">SAVE</button>`}
+function addItem(){let n=name.value.trim();if(!n)return;db.items.push({name:n,qty:+qty.value||0,unit:unit.value.trim()||"pcs",min:+min.value||0,rate:+rate.value||0});save();closeForm()}
+function apply(type){let i=+sel.value,a=+amount.value;if(!a)return;let x=db.items[i];x.qty=Math.max(0,x.qty+(type=="purchase"?a:-a));db.logs.unshift({type:type=="purchase"?"Purchase":type=="usage"?"Kitchen Usage":"Wastage",item:x.name,qty:a,unit:x.unit,date:new Date().toLocaleString()});save();closeForm()}
+function closeForm(){sheet.style.display="none"}function toast(t){toastEl=document.getElementById("toast");toastEl.textContent=t;toastEl.style.display="block";setTimeout(()=>toastEl.style.display="none",1100)}
+render();
+</script>
+</body>
+</html>
